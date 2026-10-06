@@ -1,0 +1,46 @@
+name: ENR Market Brief
+
+on:
+  schedule:
+    # GitHub cron is UTC. Each brief has two slots; the script only runs the one
+    # that lands just before 6am Toronto time (EDT in summer, EST in winter).
+    - cron: "50 9 * * 1-5"   # weekday brief
+    - cron: "50 10 * * 1-5"
+    - cron: "50 9 * * 0"     # Sunday weekly recap
+    - cron: "50 10 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Which brief to send"
+        type: choice
+        options: [daily, weekly]
+        default: daily
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency: market-brief
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: market-brief/requirements.txt
+      - run: pip install -r market-brief/requirements.txt
+      - run: python market-brief/brief.py
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          MODE: ${{ inputs.mode }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRIEF_MENTION: ${{ github.repository_owner }}
+          # Optional: add these repo secrets to get a real email instead of a GitHub notification.
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          BRIEF_TO: ${{ secrets.BRIEF_TO }}
