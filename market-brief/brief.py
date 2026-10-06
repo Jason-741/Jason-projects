@@ -153,7 +153,9 @@ NOISE_RE = re.compile(
     r"outpaced the stock market|stock market today:? .*(dips|rises|falls|beats|outpaced)|\bwhy .* (outpaced|lagged|dipped)|"
     r"what you should know|should you buy|is it time to buy|\bI'm (buying|making)\b|if the stock market crashes|"
     r"price prediction|to present at|virtual conference|investor conference|webinar|top \d+ .*stocks to|"
-    r"stocks? to (buy|watch)|millionaire|motley fool|\bbest .* stocks?\b|price (today|on) \w+ \d+",
+    r"stocks? to (buy|watch)|millionaire|motley fool|\bbest .* stocks?\b|price (today|on) \w+ \d+|"
+    r"^\w+ prices? (today|\w+ \d{1,2},? \d{4})$|stock price, news|quote (&|and) history|security guards?|"
+    r"\bstrike (passes|enters|continues)",
     re.I,
 )
 STOPWORDS = set("a an the to of in on for and or as at by with from is are be after amid over its it this that says say new".split())
@@ -221,9 +223,11 @@ def tokens(title):
 
 
 def is_noise(item):
-    title = item["title"]
-    non_ascii = sum(ord(ch) > 0x2FF for ch in title)
-    return bool(NOISE_RE.search(title)) or non_ascii > len(title) * 0.2
+    title, source = item["title"], item.get("source", "")
+    def foreign(text):
+        return text and sum(ord(ch) > 0x2FF for ch in text) > len(text) * 0.2
+    # Non-English headlines, or English ones from non-English sites (often machine-written).
+    return bool(NOISE_RE.search(title)) or foreign(title) or foreign(source)
 
 
 def cluster(items):
