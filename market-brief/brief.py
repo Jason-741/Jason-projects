@@ -384,6 +384,7 @@ def build_report(mode, stats, news, earnings, now_local, failures):
                        f"{rng:.0f}% of 52-wk range (${s['lo52']:,.2f}–${s['hi52']:,.2f})")
         else:
             out.append(f"**{name} ({t})** — no price data")
+        out.append("")
         mine = [x for x in wl_news if t in x["tickers"]][: limits["watchlist"]]
         used.update(x["link"] for x in mine)
         out += [f"- {headline(x)}" for x in mine] or ["- No new headlines."]
@@ -398,7 +399,7 @@ def build_report(mode, stats, news, earnings, now_local, failures):
     if movers:
         up = ", ".join(f"{config.SECTOR_PEERS[t]} {v:+.1f}%" for v, t in movers[:3])
         down = ", ".join(f"{config.SECTOR_PEERS[t]} {v:+.1f}%" for v, t in movers[-3:][::-1])
-        out += ["", f"**Top movers:** {up}", f"**Laggards:** {down}"]
+        out += ["", f"**Top movers:** {up}", "", f"**Laggards:** {down}"]
 
     sections = [("sector", "📰 Sector news"), ("general", "🌎 Markets & macro"), ("central_bank", "🏦 Central banks")]
     for cat, label in sections:
