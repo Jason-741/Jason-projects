@@ -115,7 +115,6 @@ RSS_FEEDS = [
     ("Globe and Mail", "https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/business/"),
     ("OilPrice.com", "https://oilprice.com/rss/main"),
     ("Mining.com", "https://www.mining.com/feed/"),
-    ("Kitco", "https://www.kitco.com/rss/KitcoNews.xml"),
     ("EIA", "https://www.eia.gov/rss/todayinenergy.xml"),
     ("Investing.com", "https://www.investing.com/rss/news_11.rss"),
     ("Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml"),
