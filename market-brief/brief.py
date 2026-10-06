@@ -133,7 +133,7 @@ SECTOR_RE = re.compile(
     re.I,
 )
 CENTRAL_BANK_RE = re.compile(
-    r"\b(federal reserve|fed|fomc|powell|bank of canada|macklem|interest rates?|rate cuts?|"
+    r"\b(federal reserve|fed|fomc|powell|(?<!national )bank of canada|macklem|interest rates?|rate cuts?|"
     r"rate hikes?|ecb|bank of england|bank of japan)\b",
     re.I,
 )
@@ -147,6 +147,14 @@ BIG_WORDS = {
     r"inventor(y|ies)|stockpile": 1, r"bankrupt\w*": 3, r"ceo|resign\w*": 1,
 }
 BIG_RE = [(re.compile(p, re.I), w) for p, w in BIG_WORDS.items()]
+# Template headlines, clickbait and promo posts that add nothing.
+NOISE_RE = re.compile(
+    r"outpaced the stock market|stock market today:? .*(dips|rises|falls|beats|outpaced)|\bwhy .* (outpaced|lagged|dipped)|"
+    r"what you should know|should you buy|is it time to buy|\bI'm (buying|making)\b|if the stock market crashes|"
+    r"price prediction|to present at|virtual conference|investor conference|webinar|top \d+ .*stocks to|"
+    r"stocks? to (buy|watch)|millionaire|motley fool|\bbest .* stocks?\b|price (today|on) \w+ \d+",
+    re.I,
+)
 STOPWORDS = set("a an the to of in on for and or as at by with from is are be after amid over its it this that says say new".split())
 
 
@@ -209,6 +217,12 @@ def fetch_news():
 def tokens(title):
     words = re.findall(r"[a-z0-9$%.]+", title.lower())
     return {w for w in words if w not in STOPWORDS and len(w) > 1}
+
+
+def is_noise(item):
+    title = item["title"]
+    non_ascii = sum(ord(ch) > 0x2FF for ch in title)
+    return bool(NOISE_RE.search(title)) or non_ascii > len(title) * 0.2
 
 
 def cluster(items):
@@ -486,7 +500,7 @@ def main():
     if missing:
         print(f"No price data for: {', '.join(missing)}", file=sys.stderr)
 
-    raw = [i for i in fetch_news() if i["published"] >= cutoff]
+    raw = [i for i in fetch_news() if i["published"] >= cutoff and not is_noise(i)]
     news = score_and_tag(cluster(raw), now_utc)
 
     earnings = fetch_earnings(list(config.CORE_WATCHLIST) + list(config.SECTOR_PEERS), 14 if mode == "weekly" else 7)

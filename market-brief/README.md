@@ -19,7 +19,7 @@ Each brief includes:
 | 📅 Earnings | Upcoming earnings for your watchlist and peers |
 
 **Sources:** Google News (Reuters, Bloomberg, WSJ, Globe and Mail and others), Yahoo Finance, CNBC,
-MarketWatch, Seeking Alpha, Financial Post, Globe and Mail, OilPrice.com, Mining.com, Kitco, EIA,
+MarketWatch, Seeking Alpha, Financial Post, Globe and Mail, OilPrice.com, Mining.com, EIA,
 Investing.com, the Federal Reserve and the Bank of Canada. When the same story appears in several
 outlets, it's merged into one item and ranked higher.
 
