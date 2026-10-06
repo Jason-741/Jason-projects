@@ -54,14 +54,14 @@ MARKETS = {
 }
 
 COMMODITIES = {
-    "CL=F": "WTI crude",
-    "BZ=F": "Brent crude",
-    "NG=F": "Natural gas",
-    "RB=F": "Gasoline",
-    "GC=F": "Gold",
-    "SI=F": "Silver",
-    "HG=F": "Copper",
-    "PL=F": "Platinum",
+    "CL=F": "WTI crude ($/bbl)",
+    "BZ=F": "Brent crude ($/bbl)",
+    "NG=F": "Natural gas ($/MMBtu)",
+    "RB=F": "Gasoline ($/gal)",
+    "GC=F": "Gold ($/oz)",
+    "SI=F": "Silver ($/oz)",
+    "HG=F": "Copper ($/lb)",
+    "PL=F": "Platinum ($/oz)",
 }
 
 SECTOR_ETFS = {
@@ -74,6 +74,37 @@ SECTOR_ETFS = {
     "URNM": "Uranium Miners (URNM)",
     "GDX": "Gold Miners (GDX)",
     "LIT": "Lithium (LIT)",
+}
+
+# What drives each core stock, shown under its price so you know what to watch.
+CORE_CONTEXT = {
+    "MP": {
+        "what": "Runs Mountain Pass in California, the only large US rare earth mine, and is building US magnet factories.",
+        "drivers": [
+            "NdPr prices (the rare earth oxide it sells)",
+            "China's rare earth and magnet export policy",
+            "Its US Defense Department deal (price floor) and offtake deals like Apple",
+            "Progress ramping up magnet production",
+        ],
+        "related": ["REMX", "LYC.AX", "USAR"],
+    },
+    "NRG": {
+        "what": "Independent power producer and retail electricity seller (Reliant, Direct Energy), with big businesses in Texas and the US Northeast.",
+        "drivers": [
+            "Power prices in Texas (ERCOT) and the PJM grid",
+            "Natural gas prices (fuel cost for its plants)",
+            "Data center electricity demand",
+            "Interest rates (power stocks often fall when yields rise)",
+        ],
+        "related": ["NG=F", "XLU", "VST", "CEG", "^TNX"],
+    },
+}
+
+# A one-line "what am I looking at" under each section.
+SECTION_NOTES = {
+    "commodities": "Futures prices for the raw materials ENR companies produce. Oil and gas drive energy producers' revenue; metals drive miners'.",
+    "markets": "The big picture. The VIX is the market's 'fear gauge', the 10-year yield sets long-term borrowing costs, and a higher USD/CAD means a weaker Canadian dollar.",
+    "sector": "ETFs are baskets of stocks, so these show how each corner of ENR did as a group, separate from any one company's news.",
 }
 
 # A move at least this big (in %) becomes a "Big thing" alert.

@@ -24,6 +24,7 @@ from urllib.parse import quote_plus
 from zoneinfo import ZoneInfo
 
 import config
+import glossary
 
 TZ = ZoneInfo(config.TIMEZONE)
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
@@ -275,12 +276,29 @@ def arrow(v):
     return f"🟢 +{v:.1f}%" if v >= 0 else f"🔴 {v:.1f}%"
 
 
+def short(name):
+    """'WTI crude ($/bbl)' -> 'WTI crude'."""
+    return re.sub(r" \(\$[^)]*\)", "", name)
+
+
 def fmt_price(t, last):
     if t == "^TNX":
         return f"{last:.2f}%"
-    if t in ("CAD=X",):
+    if t == "CAD=X":
         return f"{last:.4f}"
     return f"{last:,.2f}"
+
+
+def money(t, last):
+    is_index = t.startswith("^") or t.endswith("=X") or t.startswith("DX-")
+    return fmt_price(t, last) if is_index else f"${last:,.2f}"
+
+
+def yield_bps(s, key):
+    if not s or s.get(key) is None:
+        return None
+    prev = s["last"] / (1 + s[key] / 100)
+    return (s["last"] - prev) * 100
 
 
 def table(rows, names, stats, mode):
@@ -299,6 +317,68 @@ def table(rows, names, stats, mode):
     return "\n".join(lines) if len(lines) > 1 else "_No data_"
 
 
+def note(text):
+    return f"_{text}_"
+
+
+def quick_read(stats, mode):
+    """One plain-English paragraph summarizing the day (or week)."""
+    key = "w1" if mode == "weekly" else "d1"
+    when = "this week" if mode == "weekly" else ""
+
+    def mv(t):
+        s = stats.get(t)
+        return s[key] if s and s.get(key) is not None else None
+
+    def word(v, up="rose", down="fell", flat="was flat"):
+        if v is None:
+            return None
+        return flat if abs(v) < 0.3 else (up if v > 0 else down)
+
+    parts = []
+    spx, tsx = mv("^GSPC"), mv("^GSPTSE")
+    if spx is not None and tsx is not None:
+        if (spx >= 0) == (tsx >= 0):
+            verb = "rose" if spx >= 0 else "fell"
+            parts.append(f"Stocks {verb} {when}".strip() + f" (S&P 500 {spx:+.1f}%, TSX {tsx:+.1f}%).")
+        else:
+            parts.append(f"Stocks were mixed (S&P 500 {spx:+.1f}%, TSX {tsx:+.1f}%).")
+    for t, label in (("CL=F", "Oil (WTI)"), ("NG=F", "Natural gas"), ("GC=F", "Gold"), ("HG=F", "Copper")):
+        v, s = mv(t), stats.get(t)
+        w = word(v)
+        if w:
+            if w == "was flat":
+                parts.append(f"{label} was flat at ${fmt_price(t, s['last'])}.")
+            else:
+                parts.append(f"{label} {w} {abs(v):.1f}% to ${fmt_price(t, s['last'])}.")
+    bps = yield_bps(stats.get("^TNX"), key)
+    if bps is not None:
+        if abs(bps) < 3:
+            parts.append(f"The US 10-year yield held near {stats['^TNX']['last']:.2f}%.")
+        else:
+            parts.append(f"The US 10-year yield {'rose' if bps > 0 else 'fell'} {abs(bps):.0f} bps to {stats['^TNX']['last']:.2f}%.")
+    cad = mv("CAD=X")
+    if cad is not None and abs(cad) >= 0.2:
+        parts.append(f"The Canadian dollar {'weakened' if cad > 0 else 'strengthened'} (USD/CAD {stats['CAD=X']['last']:.4f}).")
+    wl = [f"{t} {mv(t):+.1f}%" for t in config.CORE_WATCHLIST if mv(t) is not None]
+    if wl:
+        parts.append("Your stocks: " + ", ".join(wl) + ".")
+    return " ".join(parts)
+
+
+def spreads(stats):
+    lines = []
+    wti, brent = stats.get("CL=F"), stats.get("BZ=F")
+    if wti and brent:
+        lines.append(f"- **Brent–WTI spread: ${brent['last'] - wti['last']:.2f}/bbl.** "
+                     "Brent is the global oil price and WTI the US one. A wider gap usually means global supply is tighter than US supply.")
+    gold, silver = stats.get("GC=F"), stats.get("SI=F")
+    if gold and silver and silver["last"]:
+        lines.append(f"- **Gold/silver ratio: {gold['last'] / silver['last']:.0f}.** "
+                     "How many ounces of silver buy one ounce of gold. A rising ratio often means investors are playing it safe.")
+    return lines
+
+
 def price_alerts(stats, mode):
     th = config.ALERT_THRESHOLDS
     key = "w1" if mode == "weekly" else "d1"
@@ -315,6 +395,7 @@ def price_alerts(stats, mode):
             s = stats.get(t)
             if not s or s[key] is None or t == "^TNX":
                 continue
+            name = short(name)
             move = s[key]
             boost = 4 if kind == "core" else 0
             extreme = ""
@@ -325,19 +406,18 @@ def price_alerts(stats, mode):
                     extreme = "52-week low"
             if abs(move) >= th[kind] * scale:
                 verb = "up" if move > 0 else "down"
-                note = f", new {extreme}" if extreme else ""
+                extra = f", a new {extreme}" if extreme else ""
                 alerts.append((6 + abs(move) / th[kind] * 2 + boost,
-                               f"**{name}** {verb} {abs(move):.1f}% {period} ({fmt_price(t, s['last'])}{note})"))
+                               f"📈 **{name}** {verb} {abs(move):.1f}% {period} to {money(t, s['last'])}{extra}"
+                               if move > 0 else
+                               f"📉 **{name}** {verb} {abs(move):.1f}% {period} to {money(t, s['last'])}{extra}"))
             elif extreme:
-                alerts.append((7 + boost, f"**{name}** at a {extreme} ({fmt_price(t, s['last'])})"))
+                alerts.append((7 + boost, f"📌 **{name}** hit a {extreme} ({money(t, s['last'])})"))
             if kind == "core" and mode == "daily" and s["vol_ratio"] and s["vol_ratio"] >= 2:
-                alerts.append((9, f"**{name}** traded {s['vol_ratio']:.1f}x its normal volume"))
-    tnx = stats.get("^TNX")
-    if tnx and tnx[key] is not None:
-        prev = tnx["last"] / (1 + tnx[key] / 100)
-        bps = (tnx["last"] - prev) * 100
-        if abs(bps) >= (20 if mode == "weekly" else 10):
-            alerts.append((8, f"**US 10Y yield** {'up' if bps > 0 else 'down'} {abs(bps):.0f} bps to {tnx['last']:.2f}%"))
+                alerts.append((9, f"🔊 **{name}** traded {s['vol_ratio']:.1f}x its normal volume, a sign big investors were active"))
+    bps = yield_bps(stats.get("^TNX"), key)
+    if bps is not None and abs(bps) >= (20 if mode == "weekly" else 10):
+        alerts.append((8, f"🏦 **US 10-year yield** {'up' if bps > 0 else 'down'} {abs(bps):.0f} bps to {stats['^TNX']['last']:.2f}%"))
     return alerts
 
 
@@ -349,6 +429,7 @@ def headline(n):
 def build_report(mode, stats, news, earnings, now_local, failures):
     limits = config.NEWS_LIMITS[mode]
     names = {**config.CORE_WATCHLIST, **config.SECTOR_PEERS, **config.MARKETS, **config.COMMODITIES, **config.SECTOR_ETFS}
+    key = "w1" if mode == "weekly" else "d1"
     used = set()
 
     def take(cat, n):
@@ -360,7 +441,7 @@ def build_report(mode, stats, news, earnings, now_local, failures):
     big = [(s, text) for s, text in price_alerts(stats, mode)]
     for n in news:
         if n["score"] >= 7:
-            big.append((n["score"], headline(n)))
+            big.append((n["score"], "📰 " + headline(n)))
     big.sort(key=lambda b: b[0], reverse=True)
     big = big[: limits["big"]]
     for _, text in big:
@@ -369,50 +450,88 @@ def build_report(mode, stats, news, earnings, now_local, failures):
             used.add(m.group(1))
 
     title = "ENR Weekly Recap" if mode == "weekly" else "ENR Morning Brief"
-    out = [f"# ⚡ {title} — {now_local:%a %b} {now_local.day}, {now_local.year}", ""]
+    out = [f"# ⚡ {title} — {now_local:%A, %B} {now_local.day}, {now_local.year}", ""]
+    qr = quick_read(stats, mode)
+    if qr:
+        out += [f"> **Quick read:** {qr}", ""]
 
-    out += ["## 🔥 Big things", ""]
-    out += [f"- {text}" for _, text in big] or ["- Quiet one. Nothing major moved."]
+    out += ["## 🔥 Big things", "", note("The biggest price moves and the stories covered by the most outlets."), ""]
+    out += [f"- {text}" for _, text in big] or ["- A quiet one. Nothing major moved."]
 
-    out += ["", "## 👀 Your watchlist", ""]
+    out += ["", "## 👀 Your stocks", ""]
     wl_news = [x for x in news if x["category"] == "watchlist" and x["link"] not in used]
     for t, name in config.CORE_WATCHLIST.items():
+        ctx = config.CORE_CONTEXT.get(t, {})
         s = stats.get(t)
+        out.append(f"### {name} ({t})")
+        out.append("")
         if s:
             rng = (s["last"] - s["lo52"]) / (s["hi52"] - s["lo52"]) * 100 if s["hi52"] > s["lo52"] else 0
-            out.append(f"**{name} ({t})** ${s['last']:,.2f} · 1D {arrow(s['d1'])} · 1W {arrow(s['w1'])} · 1M {arrow(s['m1'])} · "
-                       f"{rng:.0f}% of 52-wk range (${s['lo52']:,.2f}–${s['hi52']:,.2f})")
+            out.append(f"**${s['last']:,.2f}** · 1D {arrow(s['d1'])} · 1W {arrow(s['w1'])} · 1M {arrow(s['m1'])}")
+            out.append("")
+            out.append(f"52-week range ${s['lo52']:,.2f}–${s['hi52']:,.2f}: trading **{rng:.0f}%** of the way from its low to its high.")
         else:
-            out.append(f"**{name} ({t})** — no price data")
+            out.append("No price data today.")
         out.append("")
+        if ctx.get("what"):
+            out += [note(ctx["what"]), ""]
+        if ctx.get("drivers"):
+            out += ["**What moves it:**", ""] + [f"- {d}" for d in ctx["drivers"]] + [""]
+        related = [f"{short(names.get(r, r))} {arrow(stats[r][key])}" for r in ctx.get("related", []) if r in stats and r != "^TNX"]
+        bps = yield_bps(stats.get("^TNX"), key) if "^TNX" in ctx.get("related", []) else None
+        if bps is not None:
+            related.append(f"10Y yield {bps:+.0f} bps")
+        if related:
+            out += ["**Related today:** " + " · ".join(related), ""]
         mine = [x for x in wl_news if t in x["tickers"]][: limits["watchlist"]]
         used.update(x["link"] for x in mine)
-        out += [f"- {headline(x)}" for x in mine] or ["- No new headlines."]
+        out += ["**Headlines:**", ""] + ([f"- {headline(x)}" for x in mine] or ["- No major headlines."])
         out.append("")
 
-    out += ["## 🛢️ Commodities", "", table(config.COMMODITIES, names, stats, mode)]
-    out += ["", "## 📊 Markets", "", table(config.MARKETS, names, stats, mode)]
-    out += ["", "## ⛏️ ENR sector", "", table(config.SECTOR_ETFS, names, stats, mode)]
+    out += ["## 🛢️ Commodities", "", note(config.SECTION_NOTES["commodities"]), "", table(config.COMMODITIES, names, stats, mode)]
+    sp = spreads(stats)
+    if sp:
+        out += ["", "**Numbers worth knowing:**", ""] + sp
+    out += ["", "## 📊 Markets", "", note(config.SECTION_NOTES["markets"]), "", table(config.MARKETS, names, stats, mode)]
+    out += ["", "## ⛏️ ENR sector", "", note(config.SECTION_NOTES["sector"]), "", table(config.SECTOR_ETFS, names, stats, mode)]
 
-    key = "w1" if mode == "weekly" else "d1"
     movers = sorted(((stats[t][key], t) for t in config.SECTOR_PEERS if t in stats and stats[t][key] is not None), reverse=True)
     if movers:
         up = ", ".join(f"{config.SECTOR_PEERS[t]} {v:+.1f}%" for v, t in movers[:3])
         down = ", ".join(f"{config.SECTOR_PEERS[t]} {v:+.1f}%" for v, t in movers[-3:][::-1])
-        out += ["", f"**Top movers:** {up}", "", f"**Laggards:** {down}"]
+        out += ["", f"**Best in the sector:** {up}", "", f"**Worst in the sector:** {down}"]
 
-    sections = [("sector", "📰 Sector news"), ("general", "🌎 Markets & macro"), ("central_bank", "🏦 Central banks")]
-    for cat, label in sections:
+    sections = [
+        ("sector", "📰 Sector news", "Energy, power, mining and metals stories."),
+        ("general", "🌎 Markets & economy", "The wider news that moves all stocks: trade, inflation, jobs, politics."),
+        ("central_bank", "🏦 Central banks", "The Fed and Bank of Canada set interest rates, which affect borrowing costs and stock valuations."),
+    ]
+    for cat, label, desc in sections:
         picked = take(cat, limits[cat])
         if picked:
-            out += ["", f"## {label}", ""] + [f"- {headline(x)}" for x in picked]
+            out += ["", f"## {label}", "", note(desc), ""] + [f"- {headline(x)}" for x in picked]
 
     if earnings:
-        out += ["", "## 📅 Upcoming earnings", ""]
+        out += ["", "## 📅 Upcoming earnings", "",
+                note("Companies report quarterly results on these dates. Stocks often move a lot the next day."), ""]
         out += [f"- {d:%a %b} {d.day}: {names.get(t, t)} ({t})" for d, t in earnings]
 
-    out += ["", "---", f"_Generated {now_local:%Y-%m-%d %H:%M} Toronto time. Prices are the latest close or futures quote."
-            f" Edit `market-brief/config.py` to change tickers or sources._"]
+    out += ["", "## 📚 " + ("This week's terms" if mode == "weekly" else "Term of the day"), ""]
+    day_index = now_local.date().toordinal()
+    if mode == "weekly":
+        # The five weekday terms from the week just ended, as a recap.
+        days = [now_local.date() - timedelta(days=d) for d in range(6, 1, -1)]
+        for d in days:
+            term, what, why = glossary.term_for(d.toordinal())
+            out += [f"- **{term}:** {what}"]
+    else:
+        term, what, why = glossary.term_for(day_index)
+        out += [f"**{term}**", "", what, "", f"_Why it matters:_ {why}"]
+
+    out += ["", "---", "",
+            "_How to read this: 1D = change since the previous close, 1W = last 5 trading days, 1M = last 21 trading days. "
+            "Commodity prices are front-month futures. Headlines are ranked higher when several outlets cover the same story._",
+            "", f"_Generated {now_local:%Y-%m-%d %H:%M} Toronto time._"]
     if failures:
         out.append(f"_Some sources didn't respond: {', '.join(failures)}._")
     return "\n".join(out)
@@ -421,23 +540,43 @@ def build_report(mode, stats, news, earnings, now_local, failures):
 # ---------------------------------------------------------------- delivery
 
 EMAIL_CSS = """
-body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1a1a1a;max-width:720px;margin:auto;line-height:1.45;font-size:15px}
-h1{font-size:22px} h2{font-size:17px;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:26px}
-table{border-collapse:collapse;width:100%;font-size:14px} td,th{padding:4px 8px;border-bottom:1px solid #eee}
-th{text-align:left;color:#666;font-weight:600} a{color:#0b57d0;text-decoration:none} li{margin:4px 0}
+body{margin:0;padding:0;background:#f4f5f7}
+.wrap{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2328;max-width:680px;margin:0 auto;
+  padding:20px 22px;background:#ffffff;line-height:1.5;font-size:15px}
+h1{font-size:22px;margin:4px 0 14px} h2{font-size:18px;margin:30px 0 6px;padding-bottom:5px;border-bottom:2px solid #eaecef}
+h3{font-size:16px;margin:20px 0 4px}
+blockquote{margin:12px 0;padding:10px 14px;background:#eef4ff;border-left:4px solid #0b57d0;border-radius:4px}
+blockquote p{margin:0}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:6px 0} td,th{padding:6px 8px;border-bottom:1px solid #eef0f2}
+th{text-align:left;color:#57606a;font-weight:600;font-size:13px} tr:nth-child(even) td{background:#fafbfc}
+a{color:#0b57d0;text-decoration:none} li{margin:6px 0} em{color:#57606a}
+.up{color:#1a7f37;font-weight:600;white-space:nowrap} .down{color:#cf222e;font-weight:600;white-space:nowrap}
+.ai{background:#fff8e6;border:1px solid #f0d58c;border-radius:6px;padding:4px 16px 8px;margin:14px 0}
+hr{border:0;border-top:1px solid #eaecef;margin:26px 0 10px}
 """
 
 
-def send_gmail(subject, md):
+def to_html(md):
+    """Render the brief's Markdown as a styled HTML email with green/red numbers."""
     import markdown
 
+    body = markdown.markdown(md, extensions=["tables", "md_in_html"])
+    body = re.sub(r"🟢 \+([\d.,]+%)", r'<span class="up">▲ \1</span>', body)
+    body = re.sub(r"🔴 -([\d.,]+%)", r'<span class="down">▼ \1</span>', body)
+    # Gmail drops <style> classes in some views, so inline the two colours too.
+    body = body.replace('class="up"', 'class="up" style="color:#1a7f37;font-weight:600;white-space:nowrap"')
+    body = body.replace('class="down"', 'class="down" style="color:#cf222e;font-weight:600;white-space:nowrap"')
+    return (f"<html><head><meta charset='utf-8'><style>{EMAIL_CSS}</style></head>"
+            f"<body><div class='wrap'>{body}</div></body></html>")
+
+
+def send_gmail(subject, md):
     sender = os.environ["GMAIL_ADDRESS"]
     to = os.environ.get("BRIEF_TO") or sender
-    body = markdown.markdown(md, extensions=["tables"])
     msg = MIMEMultipart("alternative")
     msg["Subject"], msg["From"], msg["To"] = subject, f"ENR Brief <{sender}>", to
     msg.attach(MIMEText(md, "plain", "utf-8"))
-    msg.attach(MIMEText(f"<html><head><style>{EMAIL_CSS}</style></head><body>{body}</body></html>", "html", "utf-8"))
+    msg.attach(MIMEText(to_html(md), "html", "utf-8"))
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
         smtp.login(sender, os.environ["GMAIL_APP_PASSWORD"])
         smtp.sendmail(sender, [a.strip() for a in to.split(",")], msg.as_string())
@@ -482,7 +621,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["daily", "weekly"])
     parser.add_argument("--dry-run", action="store_true", help="print instead of sending")
+    parser.add_argument("--render-email", metavar="MARKDOWN_FILE", help="print a brief as styled email HTML and exit")
     args = parser.parse_args()
+
+    if args.render_email:
+        with open(args.render_email, encoding="utf-8") as f:
+            print(to_html(f.read()))
+        return
 
     schedule = os.environ.get("SCHEDULE", "").strip()
     if not scheduled_run_is_due(schedule):
