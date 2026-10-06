@@ -3,11 +3,12 @@ name: ENR Market Brief
 on:
   schedule:
     # GitHub cron is UTC. Each brief has two slots; the script only runs the one
-    # that lands just before 6am Toronto time (EDT in summer, EST in winter).
-    - cron: "50 9 * * 1-5"   # weekday brief
-    - cron: "50 10 * * 1-5"
-    - cron: "50 9 * * 0"     # Sunday weekly recap
-    - cron: "50 10 * * 0"
+    # that lands at 7:20am Toronto time (EDT in summer, EST in winter), so the
+    # 8am email routine has it ready.
+    - cron: "20 11 * * 1-6"  # Monday-Saturday daily brief
+    - cron: "20 12 * * 1-6"
+    - cron: "20 11 * * 0"    # Sunday weekly recap
+    - cron: "20 12 * * 0"
   workflow_dispatch:
     inputs:
       mode:

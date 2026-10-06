@@ -3,8 +3,8 @@
 An automatic morning update on markets, commodities and the Energy & Natural Resources sector,
 plus alerts on the stocks you cover.
 
-- **Weekdays, about 6am Toronto time:** the morning brief, covering the last day (Monday covers the weekend).
-- **Sundays, about 6am:** the weekly recap.
+- **Every day at 8am Toronto time:** the morning brief, covering the last day.
+- **Sundays at 8am:** the weekly recap instead.
 
 It's written for someone learning the ENR sector: every section has a one-line "what am I looking at",
 and every morning teaches one new term.

@@ -34,13 +34,13 @@ USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Ge
 
 def scheduled_run_is_due(schedule, now_utc=None):
     """GitHub cron runs in UTC, so the workflow fires at two UTC hours and only the
-    one that lands just before 6am Toronto (EDT or EST) goes ahead."""
+    one that lands at 7am Toronto (EDT or EST) goes ahead, ready for the 8am email."""
     if not schedule:
         return True
     now_utc = now_utc or datetime.now(timezone.utc)
     hour_utc = int(schedule.split()[1])
     offset_hours = int(now_utc.astimezone(TZ).utcoffset().total_seconds() // 3600)
-    return (hour_utc + offset_hours) % 24 == 5
+    return (hour_utc + offset_hours) % 24 == 7
 
 
 def mode_from_schedule(schedule):
@@ -50,8 +50,8 @@ def mode_from_schedule(schedule):
 def lookback_hours(mode, now_local):
     if mode == "weekly":
         return 7 * 24
-    # Monday's brief covers the weekend.
-    return 72 if now_local.weekday() == 0 else 26
+    # A brief goes out every day, so each one covers the last day.
+    return 26
 
 
 # ---------------------------------------------------------------- prices
