@@ -16,6 +16,7 @@ import os
 import re
 import smtplib
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -71,6 +72,18 @@ def fetch_prices(tickers):
             continue
         if len(df) >= 2:
             frames[t] = df
+    # Yahoo sometimes drops a few tickers from a bulk download; retry those one at a time.
+    for t in [t for t in tickers if t not in frames]:
+        for attempt in range(3):
+            try:
+                df = yf.Ticker(t).history(period="1y", interval="1d", auto_adjust=False)
+                df = df[["Close", "Volume"]].dropna(subset=["Close"])
+                if len(df) >= 2:
+                    frames[t] = df
+                    break
+            except Exception as e:
+                print(f"  retry {attempt + 1} failed for {t}: {e}", file=sys.stderr)
+            time.sleep(2 * (attempt + 1))
     return frames
 
 
@@ -155,7 +168,7 @@ NOISE_RE = re.compile(
     r"price prediction|to present at|virtual conference|investor conference|webinar|top \d+ .*stocks to|"
     r"stocks? to (buy|watch)|millionaire|motley fool|\bbest .* stocks?\b|price (today|on) \w+ \d+|"
     r"^\w+ prices? (today|\w+ \d{1,2},? \d{4})$|stock price, news|quote (&|and) history|security guards?|"
-    r"\bstrike (passes|enters|continues)",
+    r"\bstrike (passes|enters|continues)|\bsave \$\d+|\$\d+ off\b|\d+% off\b|\bcoupon|promo code|deals? on\b|bluetti",
     re.I,
 )
 STOPWORDS = set("a an the to of in on for and or as at by with from is are be after amid over its it this that says say new".split())
@@ -591,11 +604,19 @@ def post_github_issue(subject, md):
     import requests
 
     repo = os.environ["GITHUB_REPOSITORY"]
+    headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Accept": "application/vnd.github+json"}
+    # The 8am email routine can start a run itself if GitHub's cron is late, so a
+    # late cron run must not post the same brief twice.
+    recent = requests.get(f"https://api.github.com/repos/{repo}/issues",
+                          headers=headers, params={"state": "all", "per_page": 20}, timeout=30)
+    if recent.ok and any(i["title"] == subject for i in recent.json()):
+        print(f"Skipping: {subject!r} was already posted.", file=sys.stderr)
+        return
     mention = os.environ.get("BRIEF_MENTION")
     body = (f"@{mention} your brief is ready.\n\n" if mention else "") + md
     resp = requests.post(
         f"https://api.github.com/repos/{repo}/issues",
-        headers={"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Accept": "application/vnd.github+json"},
+        headers=headers,
         json={"title": subject, "body": body[:65000]},
         timeout=30,
     )
