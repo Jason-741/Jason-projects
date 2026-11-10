@@ -101,3 +101,12 @@ STRATEGIES = {
     "xs_momentum": (weights_cross_sectional_momentum, {"top_k": 3, "lookback": 252, "skip": 21}),
     "rsi_mean_reversion": (weights_rsi_mean_reversion, {"window": 14, "entry": 30, "exit": 55}),
 }
+
+
+def _composite(prices, top_k: int = 3, lookback: int = 252, skip: int = 21):
+    from .ranking import weights_composite
+    return weights_composite(prices, top_k, lookback, skip)
+
+
+_composite.__doc__ = "Hold the top_k by a price-only composite of momentum, trend and low volatility (positive momentum required)."
+STRATEGIES["composite_rank"] = (_composite, {"top_k": 3, "lookback": 252, "skip": 21})

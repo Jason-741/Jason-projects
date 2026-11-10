@@ -107,12 +107,15 @@ def ingest_prices(db: Session, registry: Registry, symbol: str, exchange: str, s
     return _finish(db, run, "ok" if status == "valid" else "partial", rows=rows, issues=issue_dicts)
 
 
-def ingest_fundamentals(db: Session, registry: Registry, symbol: str, exchange: str) -> IngestionRun:
-    run = IngestionRun(provider="sec_edgar", dataset="fundamentals", params={"symbol": symbol, "exchange": exchange})
+def ingest_fundamentals(db: Session, registry: Registry, symbol: str, exchange: str,
+                        sec_symbol: str | None = None) -> IngestionRun:
+    """`sec_symbol` is the ticker SEC knows the company by when it differs (e.g. TSX:CCO files as CCJ)."""
+    run = IngestionRun(provider="sec_edgar", dataset="fundamentals",
+                       params={"symbol": symbol, "exchange": exchange, "sec_symbol": sec_symbol})
     db.add(run)
     db.commit()
     try:
-        fs = registry.sec.facts(symbol, exchange)
+        fs = registry.sec.facts(sec_symbol or symbol, exchange)
     except ProviderError as exc:
         return _finish(db, run, "error", error=str(exc))
     sec = get_or_create_security(db, symbol, exchange)
@@ -134,6 +137,26 @@ def ingest_fundamentals(db: Session, registry: Registry, symbol: str, exchange: 
         rows += 1
     return _finish(db, run, "ok", rows=rows, issues=[{"severity": "info", "code": "provider_note", "message": n}
                                                      for n in fs.meta.notes])
+
+
+def store_fx_from_prices(db: Session, start: date | None = None) -> int:
+    """Copy the stored Yahoo CAD=X series (CAD per USD) into fx_rates."""
+    from ..models import FxRate
+    from .market_data import find_security, price_frame
+    sec = find_security(db, "CAD=X", "FX")
+    if sec is None:
+        return 0
+    have = {r.date for r in db.scalars(select(FxRate).where(FxRate.base == "USD", FxRate.quote == "CAD",
+                                                            FxRate.source == "yahoo"))}
+    n = 0
+    for d, row in price_frame(db, sec.id, start).iterrows():
+        if d in have or row["close"] is None or row["close"] != row["close"]:
+            continue
+        db.add(FxRate(base="USD", quote="CAD", date=d, rate=float(row["close"]), source="yahoo", currency="CAD",
+                      unit="CAD per USD", frequency="daily", quality_status=row["quality"], nature="actual"))
+        n += 1
+    db.commit()
+    return n
 
 
 def ingest_macro(db: Session, registry: Registry, series_id: str, start: date | None = None) -> IngestionRun:

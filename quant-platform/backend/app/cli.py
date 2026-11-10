@@ -32,6 +32,8 @@ def main(argv=None):
     f = sub.add_parser("ingest-fundamentals")
     f.add_argument("symbol")
     f.add_argument("--exchange", default="US")
+    f.add_argument("--sec-symbol", help="ticker used by SEC if different (e.g. CCJ for TSX:CCO)")
+    sub.add_parser("store-fx")
     m = sub.add_parser("ingest-macro")
     m.add_argument("series_id")
     u = sub.add_parser("ingest-universe")
@@ -51,8 +53,11 @@ def main(argv=None):
             print(r.status, r.provider, r.rows_written, r.error or "", r.issues or "")
     elif a.cmd == "ingest-fundamentals":
         with SessionLocal() as db:
-            r = ingestion.ingest_fundamentals(db, reg, a.symbol, a.exchange)
+            r = ingestion.ingest_fundamentals(db, reg, a.symbol, a.exchange, a.sec_symbol)
             print(r.status, r.rows_written, r.error or "")
+    elif a.cmd == "store-fx":
+        with SessionLocal() as db:
+            print("fx rows written:", ingestion.store_fx_from_prices(db))
     elif a.cmd == "ingest-macro":
         with SessionLocal() as db:
             r = ingestion.ingest_macro(db, reg, a.series_id)

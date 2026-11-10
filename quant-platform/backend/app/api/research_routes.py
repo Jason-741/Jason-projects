@@ -146,3 +146,14 @@ class CredIn(BaseModel):
 @router.post("/credibility")
 def cred(b: CredIn):
     return credibility.score_guidance(b.records)
+
+
+@router.get("/rank")
+def research_rank(as_of: date | None = None, db: Session = Depends(get_db)):
+    """Multi-factor research ranking. Candidates for research — not buy recommendations."""
+    from ..api.common import jsonable
+    from ..services.research_rank import build_ranking
+    out = build_ranking(db, as_of)
+    out["disclaimer"] = ("A high score means strong recent trend, contained risk and (where available) good fundamentals. "
+                         "It is not a valuation verdict and does not predict returns.")
+    return jsonable(out)
