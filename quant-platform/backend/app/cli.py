@@ -38,6 +38,10 @@ def main(argv=None):
     m.add_argument("series_id")
     u = sub.add_parser("ingest-universe")
     u.add_argument("--start", default="2015-01-01")
+    rs = sub.add_parser("research", help="full research report for any ticker (JSON)")
+    rs.add_argument("ticker")
+    rs.add_argument("--out", help="write JSON here instead of stdout")
+    rs.add_argument("--no-universe", action="store_true", help="skip refreshing the peer universe")
     sub.add_parser("backup")
     a = ap.parse_args(argv)
     init_db()
@@ -71,6 +75,19 @@ def main(argv=None):
                 db.commit()
                 r = ingestion.ingest_prices(db, reg, sym, exch, date.fromisoformat(a.start))
                 print(f"{sym:10} {exch:6} {r.status:8} rows={r.rows_written} {r.error or ''}")
+    elif a.cmd == "research":
+        import json
+        import logging
+        logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+        from .services.stock_research import build_report
+        with SessionLocal() as db:
+            rep = build_report(db, reg, a.ticker, refresh_universe=not a.no_universe)
+        text = json.dumps(rep, default=str, allow_nan=False)
+        if a.out:
+            open(a.out, "w").write(text)
+            print(f"{rep.get('status')}: {rep.get('symbol', a.ticker)} -> {a.out} ({rep.get('conclusion', {}).get('verdict', rep.get('error'))})")
+        else:
+            print(text)
     elif a.cmd == "backup":
         url = get_settings().database_url
         if not url.startswith("sqlite:///"):
