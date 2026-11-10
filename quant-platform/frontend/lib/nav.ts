@@ -1,0 +1,18 @@
+export const NAV = [
+  { href: "/", label: "Overview", n: 1 },
+  { href: "/markets", label: "Markets", n: 2 },
+  { href: "/sectors", label: "Sector Intelligence", n: 3 },
+  { href: "/screener", label: "Stock Screener", n: 4 },
+  { href: "/company", label: "Company Research", n: 5 },
+  { href: "/earnings", label: "Earnings Intelligence", n: 6 },
+  { href: "/models", label: "Financial Models", n: 7 },
+  { href: "/valuation", label: "Valuation", n: 8 },
+  { href: "/quant", label: "Quantitative Research", n: 9 },
+  { href: "/backtest", label: "Backtesting", n: 10 },
+  { href: "/risk", label: "Risk Management", n: 11 },
+  { href: "/construct", label: "Portfolio Construction", n: 12 },
+  { href: "/paper", label: "Paper Trading", n: 13 },
+  { href: "/live", label: "Live Portfolio", n: 14 },
+  { href: "/journal", label: "Investment Journal", n: 15 },
+  { href: "/settings", label: "Settings & Data Sources", n: 16 },
+];

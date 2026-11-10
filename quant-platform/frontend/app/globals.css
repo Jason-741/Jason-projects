@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+body { @apply bg-ink-950 text-slate-200 antialiased; font-feature-settings: "tnum"; }
+.num { font-variant-numeric: tabular-nums; @apply font-mono; }
+.card { @apply bg-ink-900 border border-ink-700 rounded-md; }
+.card-h { @apply px-3 py-2 border-b border-ink-700 text-[11px] uppercase tracking-wider text-slate-400 flex items-center justify-between; }
+.input { @apply bg-ink-850 border border-ink-600 rounded px-2 py-1 text-sm text-slate-100 focus:outline-none focus:border-accent; }
+.btn { @apply bg-accent text-ink-950 font-semibold text-sm rounded px-3 py-1 hover:brightness-110 disabled:opacity-40; }
+.btn-ghost { @apply border border-ink-600 text-slate-300 text-sm rounded px-3 py-1 hover:bg-ink-800; }
+.label { @apply text-[11px] uppercase tracking-wider text-slate-500; }
+table.grid-t { @apply w-full text-xs; }
+table.grid-t th { @apply text-left font-medium text-slate-400 px-2 py-1 border-b border-ink-700 bg-ink-850 sticky top-0; }
+table.grid-t td { @apply px-2 py-1 border-b border-ink-800 whitespace-nowrap; }
+table.grid-t tr:hover td { @apply bg-ink-850; }
