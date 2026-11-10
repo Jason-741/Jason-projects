@@ -22,7 +22,12 @@ def _load_dotenv(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+        value = value.strip()
+        if value[:1] in ('"', "'") and value[0] in value[1:]:
+            value = value[1:value.index(value[0], 1)]          # quoted value; ignore anything after it
+        else:
+            value = value.split(" #", 1)[0].strip()            # strip inline comment
+        os.environ.setdefault(key.strip(), value)
 
 
 @dataclass(frozen=True)

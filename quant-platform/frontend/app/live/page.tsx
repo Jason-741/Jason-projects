@@ -60,7 +60,7 @@ export default function Live() {
             <Table max={200} rows={imp.preview} cols={[{ key: "date", label: "Date" }, { key: "type", label: "Type" }, { key: "symbol", label: "Sym" }, { key: "quantity", label: "Qty", fmt: "num", d: 4 },
               { key: "price", label: "Price", fmt: "num", d: 4 }, { key: "amount", label: "Amount", fmt: "num" }, { key: "currency", label: "Ccy" }]} />
           </div>}
-          <Note>The Wealthsimple parser is best-effort — export formats change. Always preview. <a className="text-accent" href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/import/template`} target="_blank" rel="noreferrer">Generic template</a> (requires auth header; see docs/IMPORT_FORMAT.md).</Note>
+          <Note>The Wealthsimple parser is best-effort — export formats change. Always preview. <a className="text-accent" href="/api/import/template" target="_blank" rel="noreferrer">Generic template</a> (requires auth header; see docs/IMPORT_FORMAT.md).</Note>
         </Card>
         <Card title="Manual transaction">
           <div className="grid grid-cols-3 gap-2">
